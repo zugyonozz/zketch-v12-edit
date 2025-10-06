@@ -164,6 +164,18 @@ namespace zketch {
 		Button
 	} ;
 
+	enum class WindowState : uint8_t {
+		None		= 0,
+		Active 		= 1 << 0,
+		NonActive	= 1 << 1,
+		Close		= 1 << 2,
+		Destroyed	= 1 << 3,
+		UnRegister	= 1 << 4,
+		Register	= 1 << 5,
+		Resize		= 1 << 6,
+		Move		= 1 << 7,
+	} ;
+
 	enum class MouseState : uint8_t {
 		None,
 		Up,
@@ -207,4 +219,26 @@ namespace zketch {
         Underline   = Gdiplus::FontStyleUnderline,
         Strikeout   = Gdiplus::FontStyleStrikeout
     } ;
+
+	inline WindowState operator|(WindowState a, WindowState b) noexcept {
+		return static_cast<WindowState>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b)) ;
+	}
+
+	inline WindowState operator&(WindowState a, WindowState b) noexcept {
+		return static_cast<WindowState>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b)) ;
+	}
+
+	inline WindowState operator~(WindowState a) noexcept {
+		return static_cast<WindowState>(~static_cast<uint8_t>(a)) ;
+	}
+
+	inline WindowState operator|=(WindowState& a, WindowState b) noexcept {
+		a = a | b ;
+		return a ;
+	}
+
+	inline WindowState operator&=(WindowState& a, WindowState b) noexcept {
+		a = a & b ;
+		return a ;
+	}
 }

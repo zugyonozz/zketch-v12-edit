@@ -13,12 +13,43 @@ namespace zketch {
 	private :
 		static inline std::unordered_map<HWND, Window*> g_windows_ ;
 		static inline bool app_is_runing_ = true ;
+
+		static void UnRegisterWindow(HWND hwnd) noexcept {
+			if (hwnd) {
+				auto it = Application::g_windows_.find(hwnd) ;
+				if (it != Application::g_windows_.end()) {
+					Application::g_windows_.erase(it) ;
+
+					#ifdef APPLICATION_DEBUG
+						logger::info("Application::UnRegisterWindow - Erased window from g_windows_, current size : ", Application::g_windows_.size()) ;
+					#endif
+
+				} else {
+
+					#ifdef APPLICATION_DEBUG
+						logger::info("Application::UnRegisterWindow - hwnd not found in g_windows_. size: ", Application::g_windows_.size()) ;
+					#endif
+
+				}
+
+				#ifdef APPLICATION_DEBUG
+					logger::info("Application::UnRegisterWindow - Current g_windows size : ", Application::g_windows_.size()) ;
+				#endif
+				
+			}
+		}
 	
 	public :
 		static void QuitProgram() noexcept {
+			std::vector<HWND> destroy_sequence ;
+			destroy_sequence.reserve(g_windows_.size()) ;
 			for (auto& w : g_windows_) {
-				if (IsWindow(w.first)) {
-					DestroyWindow(w.first) ;
+				destroy_sequence.push_back(w.first) ;
+			}
+
+			for (auto& w : destroy_sequence) {
+				if (IsWindow(w)) {
+					DestroyWindow(w) ;
 				}
 			}
 
@@ -39,12 +70,12 @@ namespace zketch {
 
 	namespace AppRegistry {
 
-		static inline HINSTANCE g_hintance_ = GetModuleHandleW(nullptr) ;
+		static inline HINSTANCE g_hinstance_ = GetModuleHandleW(nullptr) ;
 		static inline std::string g_window_class_name_ = "zketch_app" ;
 		static inline bool window_was_registered = false ;
 
 		static void SetWindowClass(std::string&& windowclassname) noexcept {
-			if (!window_was_registered) {
+			if (window_was_registered) {
 				
 				#ifdef APPREGISTRY_DEBUG
 					logger::warning("AppRegistry::SetWindowClass - Failed to register window class name, window class name was registered.") ;
@@ -72,7 +103,7 @@ namespace zketch {
 				wndproc,
 				0,
 				0,
-				AppRegistry::g_hintance_,
+				AppRegistry::g_hinstance_,
 				LoadIcon(nullptr, IDI_APPLICATION),
 				LoadCursor(nullptr, IDC_ARROW),
 				nullptr,
@@ -106,43 +137,46 @@ namespace zketch {
 		HWND handle_ = nullptr ;
 		std::unique_ptr<Canvas> front_buffer_ ;
 		std::unique_ptr<Canvas> back_buffer_ ;
+		WindowState state_ = WindowState::None ;
 
 		void CreateCanvas(const Size& size) noexcept {
-			if (!front_buffer_) {
-				front_buffer_ = std::make_unique<Canvas>() ;
-			}
+			if ((state_ & WindowState::Destroyed) != WindowState::Destroyed) {
+				if (!front_buffer_) {
+					front_buffer_ = std::make_unique<Canvas>() ;
+				}
 
-			if (!back_buffer_) {
-				back_buffer_ = std::make_unique<Canvas>() ;
-			}
+				if (!back_buffer_) {
+					back_buffer_ = std::make_unique<Canvas>() ;
+				}
 
-			if (!front_buffer_->Create(size)) {
+				if (!front_buffer_->Create(size)) {
+
+					#ifdef WINDOW_DEBUG
+						logger::error("Window::CreateCanvas - failed to create front buffer canvas.") ;
+					#endif
+
+					return ;
+				}
+
+				if (!back_buffer_->Create(size)) {
+
+					#ifdef WINDOW_DEBUG
+						logger::error("Window::CreateCanvas - failed to create back buffer canvas.") ;
+					#endif
+
+					return ;
+				}
 
 				#ifdef WINDOW_DEBUG
-					logger::error("Window::CreateCanvas - failed to create front buffer canvas.") ;
+					logger::info("Window::CreateCanvas - Successfully create with size : [", size.x, "x", size.y, "] .") ;
 				#endif
-
-				return ;
 			}
-
-			if (!back_buffer_->Create(size)) {
-
-				#ifdef WINDOW_DEBUG
-					logger::error("Window::CreateCanvas - failed to create back buffer canvas.") ;
-				#endif
-
-				return ;
-			}
-
-			#ifdef WINDOW_DEBUG
-				logger::info("Window::CreateCanvas - Successfully create with size : [", size.x, "x", size.y, "] .") ;
-			#endif
-
 		}
 
 		bool IsCanvasValid() const noexcept {
-			return front_buffer_->IsValid() && back_buffer_->IsValid() ;
+    		return front_buffer_ && back_buffer_ && front_buffer_->IsValid() && back_buffer_->IsValid() && ((state_ & WindowState::Destroyed) != WindowState::Destroyed) ;
 		}
+
 
 	public :
 		Window(const Window&) = delete ;
@@ -160,7 +194,7 @@ namespace zketch {
 				height,
 				nullptr,
 				nullptr,
-				AppRegistry::g_hintance_,
+				AppRegistry::g_hinstance_,
 				nullptr
 			) ;
 
@@ -173,7 +207,9 @@ namespace zketch {
 				return ;
 			}
 
+			state_ = WindowState::Active ;
 			Application::g_windows_.emplace(handle_, this) ;
+			state_ |= WindowState::Register ;
 
 			#ifdef WINDOW_DEBUG
 				logger::info("Window::Window - Create Window success.") ;
@@ -194,7 +230,7 @@ namespace zketch {
 				height,
 				nullptr,
 				nullptr,
-				AppRegistry::g_hintance_,
+				AppRegistry::g_hinstance_,
 				nullptr
 			) ;
 
@@ -207,7 +243,9 @@ namespace zketch {
 				return ;
 			}
 
+			state_ = WindowState::Active ;
 			Application::g_windows_.emplace(handle_, this) ;
+			state_ |= WindowState::Register ;
 
 			#ifdef WINDOW_DEBUG
 				logger::info("Window::Window - Create Window success.") ;
@@ -216,14 +254,18 @@ namespace zketch {
 			CreateCanvas(GetClientBound().GetSize()) ;
 		}
 
-		Window(Window&& o) noexcept : handle_(std::exchange(o.handle_, nullptr)), front_buffer_(std::move(o.front_buffer_)) {
+		Window(Window&& o) noexcept : 
+		handle_(std::exchange(o.handle_, nullptr)),
+		front_buffer_(std::move(o.front_buffer_)), 
+		back_buffer_(std::move(o.back_buffer_)),
+		state_(std::exchange(o.state_, WindowState::None)) {
 
 			#ifdef WINDOW_DEBUG
 				logger::info("Window::Window - Calling move ctor.") ;
 			#endif
 
 			if (handle_) {
-				auto it = Application::g_windows_.find(o.handle_) ;
+				auto it = Application::g_windows_.find(handle_) ;
 				if (it != Application::g_windows_.end()) 
 					Application::g_windows_.erase(it) ;
 				Application::g_windows_[handle_] = this ;
@@ -231,27 +273,34 @@ namespace zketch {
 		}
 
 		~Window() noexcept {
+			if ((state_ & WindowState::Destroyed) != WindowState::Destroyed) {
+				#ifdef WINDOW_DEBUG
+					logger::info("Window::~Window - Calling window dtor") ;
+				#endif
 
-			#ifdef WINDOW_DEBUG
-				logger::info("Window::~Window - Calling window dtor") ;
-			#endif
-
-			if (handle_) {
-				if (IsWindow(handle_)) {
-					DestroyWindow(handle_) ;
+				if ((state_ & WindowState::Register) == WindowState::Register) {
+					Application::UnRegisterWindow(handle_) ;
+					state_ &= ~WindowState::Register ;
+					state_ |= WindowState::UnRegister ;
 				}
-				handle_ = nullptr ;
 
-				#ifdef WINDOW_DEBUG
-					logger::info("Window::~Window - Success to set hwnd to nullptr.") ;
-				#endif
+				if (handle_) {
+					if (IsWindow(handle_)) {
+						DestroyWindow(handle_) ;
+					}
+					handle_ = nullptr ;
 
-			} else {
+					#ifdef WINDOW_DEBUG
+						logger::info("Window::~Window - Success to set hwnd to nullptr.") ;
+					#endif
 
-				#ifdef WINDOW_DEBUG
-					logger::warning("Window::~Window - Failed to set hwnd, hwnd is already nullptr.") ;
-				#endif
+				} else {
 
+					#ifdef WINDOW_DEBUG
+						logger::warning("Window::~Window - Failed to set hwnd, hwnd is already nullptr.") ;
+					#endif
+
+				}
 			}
 		}
 
@@ -262,15 +311,21 @@ namespace zketch {
 			#endif
 
 			if (this != &o) {
-				handle_ = std::exchange(o.handle_, nullptr) ;
-				front_buffer_ = std::move(o.front_buffer_) ;
-				
-				auto it = Application::g_windows_.find(o.handle_) ;
-				if (it != Application::g_windows_.end()) {
-					Application::g_windows_.erase(it) ;
+				if (handle_) {
+					auto it_this = Application::g_windows_.find(handle_) ;
+					if (it_this != Application::g_windows_.end()) {
+						Application::g_windows_.erase(it_this) ;
+					}
 				}
 
-				Application::g_windows_[handle_] = this ;
+				handle_ = std::exchange(o.handle_, nullptr) ;
+				front_buffer_ = std::move(o.front_buffer_) ;
+				back_buffer_ = std::move(o.back_buffer_) ;
+				state_ = std::exchange(o.state_, WindowState::None) ;
+
+				if (handle_) {
+					Application::g_windows_[handle_] = this;
+				}
 			}
 
 			return *this ;
@@ -308,23 +363,26 @@ namespace zketch {
 		}
 
 		void Close() noexcept {
-			if (handle_) {
-				DestroyWindow(handle_) ;
-			}
-		}
 
-		void Close() const noexcept {
-			if (handle_) {
+			if ((state_ & WindowState::Register) == WindowState::Register) {
+				Application::UnRegisterWindow(handle_) ;
+				state_ &= ~WindowState::Register ;
+				state_ |= WindowState::UnRegister ;
+			}
+
+			if (IsWindow(handle_)) {
 
 				#ifdef WINDOW_DEBUG
-					logger::info("Quit() called for window: ", handle_) ;
+					logger::info("Window::Quit - Called for window: ", handle_) ;
 				#endif
 
-				DestroyWindow(handle_);
+				DestroyWindow(handle_) ;
+				handle_ = nullptr ;
+				state_ |= WindowState::Destroyed ;
 			} else {
 
 				#ifdef WINDOW_DEBUG
-					logger::warning("Quit() failed: invalid window handle") ;
+					logger::warning("Window::Quit - Invalid window handle") ;
 				#endif
 
 			}
@@ -397,29 +455,6 @@ namespace zketch {
 				return 0 ;
 
 			case WM_DESTROY : 
-				if (hwnd) {
-					auto it = Application::g_windows_.find(hwnd) ;
-					if (it != Application::g_windows_.end()) {
-						Application::g_windows_.erase(it) ;
-
-						#ifdef WINDOWPROCEDURE_DEBUG
-							logger::info("erased window from g_windows_. current size : ", Application::g_windows_.size()) ;
-						#endif
-
-					} else {
-
-						#ifdef WINDOWPROCEDURE_DEBUG
-							logger::info("WM_DESTROY for hwnd not found in g_windows_. size: ", Application::g_windows_.size()) ;
-						#endif
-
-					}
-
-					#ifdef WINDOWPROCEDURE_DEBUG
-						logger::info("current g_windows size : ", Application::g_windows_.size()) ;
-					#endif
-					
-				}
-
 				if (Application::g_windows_.empty()) {
 					Application::QuitProgram() ;
 				}
