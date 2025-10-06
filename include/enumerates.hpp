@@ -176,6 +176,12 @@ namespace zketch {
 		Move		= 1 << 7,
 	} ;
 
+	enum class KeyState : uint8_t {
+		None,
+		Up,
+		Down
+	} ;
+
 	enum class MouseState : uint8_t {
 		None,
 		Up,
@@ -187,28 +193,22 @@ namespace zketch {
 		None,
 		Left, 
 		Right, 
-		Middle, 
-	} ;
-
-	enum class KeyState : uint8_t {
-		None,
-		Up,
-		Down
+		Middle
 	} ;
 
 	enum class SliderState : uint8_t {
 		None,
-		Changed,
 		Start,
 		End,
+		Changed,
 		Hover
 	} ;
 
 	enum class ButtonState : uint8_t {
 		None,
-		Hover,
 		Press,
-		Release
+		Release,
+		Hover
 	} ;
 
 	enum class FontStyle : uint32_t {

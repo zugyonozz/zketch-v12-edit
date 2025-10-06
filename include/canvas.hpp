@@ -9,8 +9,7 @@ namespace zketch {
 
 	private :
 		std::unique_ptr<Gdiplus::Bitmap> canvas_ {} ;
-		bool invalidate_ ;
-
+		bool invalidate_ = false ;
 
 	public :
 		Canvas(const Canvas&) = delete ;

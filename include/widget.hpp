@@ -54,7 +54,6 @@ namespace zketch {
 				return nullptr ;
 			}
 			
-            InvokeUpdate() ;
 			return canvas_.get() ;
 		}
 

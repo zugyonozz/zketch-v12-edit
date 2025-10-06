@@ -8,6 +8,6 @@
 namespace zketch {
 	void zketch_init() noexcept {
 		AppRegistry::RegisterWindowClass() ;
-		EventSystem::Initialize() ;
+		EventSystem::Init() ;
 	}
 }

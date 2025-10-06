@@ -18,9 +18,10 @@
 #include <iostream>
 
 namespace zketch {
+	class EventSystem ;
+	class Canvas ;
 	class Window ;
 	class Renderer ;
-	class Drawer ;
 	class Slider ;
 	class Button ;
 	class TextBox ;
