@@ -11,7 +11,7 @@ namespace zketch {
 	struct DumpOptions ;
 	std::optional<std::pair<size_t, size_t>> DumpInstalledFonts(const DumpOptions&) noexcept ;
 
-	// Font class untuk runtime usage (dengan std::string untuk convenience)
+	// Font class dengan fixed-size storage untuk safe serialization
 	#pragma pack(push, 1)
 	class Font {
 		friend inline void GetCharacterWidths(HDC, Font&) noexcept ;
@@ -23,8 +23,9 @@ namespace zketch {
 		static constexpr uint8_t CHAR_START_ = 32 ;   // Space
 		static constexpr uint8_t CHAR_END_ = 126 ;    // Tilde ~
 		static constexpr uint8_t CHAR_COUNT_ = CHAR_END_ - CHAR_START_ + 1 ;  // 95 chars
+		static constexpr size_t FONTNAME_MAX_LEN_ = 192 ;  // Match font-ref.hpp
 
-		std::string fontname_ {} ;
+		std::array<char, FONTNAME_MAX_LEN_> fontname_ {} ;  // Fixed-size for safe serialization
 		FontStyle style_ = FontStyle::Regular ;
 		float height_ = 0.0f ;
 		float weight_ = 0.0f ;
@@ -32,29 +33,68 @@ namespace zketch {
 		float descent_ = 0.0f ;
 		std::array<float, CHAR_COUNT_> char_widths_ {} ;
 		bool is_valid_ = false ;
+		uint8_t padding_[2] {} ;  // Explicit padding for alignment
+
+		// Helper: Set font name with bounds checking
+		inline void SetFontNameInternal(const std::string_view& name) noexcept {
+			const size_t len = (name.size() < FONTNAME_MAX_LEN_ - 1) ? name.size() : FONTNAME_MAX_LEN_ - 1 ;
+			memcpy(fontname_.data(), name.data(), len) ;
+			fontname_[len] = '\0' ;
+		}
 
 	public:
 		Font() noexcept = default ;
-		Font(const Font& o) noexcept = default ;
-		Font& operator=(const Font& o) noexcept = default ;
+		
+		// Copy constructor
+		Font(const Font& o) noexcept {
+			fontname_ = o.fontname_ ;
+			style_ = o.style_ ;
+			height_ = o.height_ ;
+			weight_ = o.weight_ ;
+			ascent_ = o.ascent_ ;
+			descent_ = o.descent_ ;
+			char_widths_ = o.char_widths_ ;
+			is_valid_ = o.is_valid_ ;
+		}
+		
+		// Copy assignment
+		Font& operator=(const Font& o) noexcept {
+			if (this != &o) {
+				fontname_ = o.fontname_ ;
+				style_ = o.style_ ;
+				height_ = o.height_ ;
+				weight_ = o.weight_ ;
+				ascent_ = o.ascent_ ;
+				descent_ = o.descent_ ;
+				char_widths_ = o.char_widths_ ;
+				is_valid_ = o.is_valid_ ;
+			}
+			return *this ;
+		}
 
-		Font(const char* fontname, float size, FontStyle style) noexcept : 
-			fontname_(fontname), height_(size), style_(style) {}
+		Font(const char* fontname, float size, FontStyle style) noexcept : style_(style), height_(size) {
+			SetFontNameInternal(fontname) ;
+		}
 
-		Font(Font&& o) noexcept : 
-			fontname_(std::move(o.fontname_)), 
-			style_(std::exchange(o.style_, FontStyle::Regular)), 
-			height_(std::exchange(o.height_, 0.0f)), 
-			weight_(std::exchange(o.weight_, 0.0f)), 
-			ascent_(std::exchange(o.ascent_, 0.0f)), 
-			descent_(std::exchange(o.descent_, 0.0f)), 
-			char_widths_(std::move(o.char_widths_)), 
-			is_valid_(std::exchange(o.is_valid_, false)) {}
+		// Move constructor (trivial for fixed-size array)
+		Font(Font&& o) noexcept {
+			fontname_ = o.fontname_ ;
+			o.fontname_.fill('\0') ;
+			style_ = std::exchange(o.style_, FontStyle::Regular) ;
+			height_ = std::exchange(o.height_, 0.0f) ;
+			weight_ = std::exchange(o.weight_, 0.0f) ;
+			ascent_ = std::exchange(o.ascent_, 0.0f) ;
+			descent_ = std::exchange(o.descent_, 0.0f) ;
+			char_widths_ = std::move(o.char_widths_) ;
+			is_valid_ = std::exchange(o.is_valid_, false) ;
+		}
 
+		// Move assignment
 		Font& operator=(Font&& o) noexcept {
 			if (this != &o) {
-				fontname_ = std::move(o.fontname_) ;
-				style_ = std::exchange(o.style_, FontStyle::Regular) ;  // FIX: was declaring local variable
+				fontname_ = o.fontname_ ;
+				o.fontname_.fill('\0') ;
+				style_ = std::exchange(o.style_, FontStyle::Regular) ;
 				height_ = std::exchange(o.height_, 0.0f) ;
 				weight_ = std::exchange(o.weight_, 0.0f) ;
 				ascent_ = std::exchange(o.ascent_, 0.0f) ;
@@ -65,17 +105,19 @@ namespace zketch {
 			return *this ;
 		}
 
+		// Conversion to Gdiplus::Font
 		operator Gdiplus::Font() const noexcept {
-			std::wstring cvtres(fontname_.begin(), fontname_.end()) ;
-			return Gdiplus::Font(cvtres.c_str(), height_, static_cast<int>(style_), Gdiplus::UnitPixel) ;
+			const std::string_view name_view = GetFontName() ;
+			const std::wstring wname(name_view.begin(), name_view.end()) ;
+			return Gdiplus::Font(wname.c_str(), height_, static_cast<int>(style_), Gdiplus::UnitPixel) ;
 		}
 
-		bool IsValid() const noexcept {
+		[[nodiscard]] bool IsValid() const noexcept {
 			return is_valid_ ;
 		}
 
 		void SetFontName(const std::string_view& fontname) noexcept {
-			fontname_ = fontname ;
+			SetFontNameInternal(fontname) ;
 		}
 
 		void SetSizeFont(float fontsize) noexcept {
@@ -98,7 +140,7 @@ namespace zketch {
 			if (c < CHAR_START_ || c > CHAR_END_) {
 				return std::nullopt ;
 			}
-			return char_widths_[c - CHAR_START_] ;
+			return char_widths_[static_cast<size_t>(c - CHAR_START_)] ;
 		}
 
 		[[nodiscard]] std::optional<float> GetTextWidth(const std::string_view& text) const noexcept {
@@ -161,15 +203,21 @@ namespace zketch {
 			return GetTextBound(static_cast<std::string_view>(text), origin, fallbackWidth) ;
 		}
 
-		[[nodiscard]] const std::string& GetFontName() const noexcept { return fontname_ ; }
+		// Getters - return string_view for zero-copy
+		[[nodiscard]] std::string_view GetFontName() const noexcept { 
+			return std::string_view(fontname_.data(), fontname_.size()) ; 
+		}
+		
+		[[nodiscard]] std::string GetFontNameStr() const { 
+			return std::string(fontname_.data(), fontname_.size()) ; 
+		}
+		
 		[[nodiscard]] float GetFontSize() const noexcept { return height_ ; }
 		[[nodiscard]] FontStyle GetFontStyle() const noexcept { return style_ ; }
 	} ;
 	#pragma pack(pop)
 
-	// WARNING: Binary serialization of Font class is NOT SAFE due to std::string internal pointers
-	// For safe binary serialization, use a separate fixed-size struct (see font-ref.hpp FontEntry)
-	// This binary format is for quick save/load in same process session only
+	// Binary serialization is now SAFE - no pointers, fixed-size struct
 	#pragma pack(push, 1)
 	struct FontBinaryHeader {
 		uint32_t magic ;
@@ -410,9 +458,10 @@ namespace zketch {
 				Font entry = *entryOpt ;
 				
 				// Create unique key
+				const std::string_view name_view = entry.GetFontName() ;
 				std::string key ;
-				key.reserve(entry.GetFontName().size() + 2) ;
-				key.append(entry.GetFontName()) ;
+				key.reserve(name_view.size() + 2) ;
+				key.append(name_view) ;
 				key.push_back('|') ;
 				key.push_back('0' + static_cast<char>(entry.style_)) ;
 				
@@ -421,7 +470,7 @@ namespace zketch {
 				entries.push_back(entry) ;
 				
 				if (opt.write_csv) {
-					AppendCSVField(csvOutput, entry.GetFontName()) ;
+					AppendCSVField(csvOutput, name_view) ;
 					csvOutput.push_back(',') ;
 					csvOutput.append(std::to_string(entry.height_)) ;
 					csvOutput.push_back(',') ;
@@ -433,7 +482,7 @@ namespace zketch {
 					csvOutput.push_back(',') ;
 					csvOutput.append(std::to_string(static_cast<int>(entry.style_))) ;
 					
-					// FIX: Proper iteration over char widths
+					// Write char widths
 					for (size_t i = 0 ; i < entry.char_widths_.size() ; ++i) {
 						csvOutput.push_back(',') ;
 						csvOutput.append(std::to_string(entry.char_widths_[i])) ;
@@ -460,8 +509,7 @@ namespace zketch {
 
 		size_t binBytes = 0 ;
 		if (opt.write_binary && !entries.empty()) {
-			// WARNING: This writes std::string internal state which contains pointers
-			// Only use this for same-session save/load, not for persistent storage
+			// Binary serialization is now SAFE - no pointers in Font class
 			std::ofstream binFile(opt.out_path_bin, std::ios::binary) ;
 			if (binFile) {
 				FontBinaryHeader header ;
@@ -484,8 +532,7 @@ namespace zketch {
 		return std::make_pair(entries.size(), std::max(csvBytes, binBytes)) ;
 	}
 
-	// WARNING: LoadFontsFromBinary is NOT SAFE for persistent storage
-	// Only use for same-session save/load due to std::string pointer issues
+	// Binary serialization is now SAFE for persistent storage
 	[[nodiscard]] inline std::optional<std::unordered_map<std::string, Font>> LoadFontsFromBinary(const std::string& filename) noexcept {
 		std::ifstream file(filename, std::ios::binary) ;
 		if (!file) {
@@ -524,7 +571,10 @@ namespace zketch {
 		}
 		
 		for (auto& entry : entries) {
-			std::string key = entry.GetFontName() ;
+			const std::string_view name_view = entry.GetFontName() ;
+			std::string key ;
+			key.reserve(name_view.size() + 2) ;
+			key.append(name_view) ;
 			key.push_back('|') ;
 			key.push_back('0' + static_cast<char>(entry.GetFontStyle())) ;
 			fontMap.emplace(std::move(key), std::move(entry)) ;
