@@ -1,7 +1,6 @@
 #pragma once
 #include "unit.hpp"
 
-#define FONT_SCOPE_
 
 namespace zketch {
 
@@ -9,18 +8,14 @@ namespace zketch {
 	bool ValidateFont(const std::string_view& fontname) noexcept ;
 	inline void GetCharacterWidths(HDC, Font&) noexcept ;
 	std::optional<Font> TryCreateFont(HDC, const std::wstring&, int, bool) noexcept ;
-	#ifdef FONT_SCOPE_
-		class DumpOptions ;
-		inline std::optional<std::pair<size_t, size_t>> DumpInstalledFonts(const DumpOptions&) noexcept ;
-	#endif
+	class DumpOptions ;
+	inline std::optional<std::pair<size_t, size_t>> DumpInstalledFonts(const DumpOptions&) noexcept ;
 
 	#pragma pack(push, 1)
     class Font {
 		friend inline void GetCharacterWidths(HDC, Font&) noexcept ;
 		friend std::optional<Font> TryCreateFont(HDC hdc, const std::wstring& fontname, int reqWeight, bool reqItalic) noexcept ;
-		#ifdef FONT_SCOPE_
-			friend inline std::optional<std::pair<size_t, size_t>> DumpInstalledFonts(const DumpOptions&) noexcept ;
-		#endif
+		friend inline std::optional<std::pair<size_t, size_t>> DumpInstalledFonts(const DumpOptions&) noexcept ;
 
     private:
 		// Compact character width storage (ASCII 32-126 = 95 chars)
@@ -54,7 +49,7 @@ namespace zketch {
 		Font& operator=(Font&& o) noexcept {
 			if (this != &o) {
 				fontname_ = std::move(o.fontname_) ;
-				FontStyle style_ = FontStyle::Regular ;
+				FontStyle style_ = std::exchange(o.style_, FontStyle::Regular) ;
 				height_ = std::exchange(o.height_, 0.0f) ;
 				weight_ = std::exchange(o.weight_, 0.0f) ;
 				ascent_ = std::exchange(o.ascent_, 0.0f) ;
@@ -165,292 +160,288 @@ namespace zketch {
     } ;
 	#pragma pack(pop)
 
-	#ifdef FONT_SCOPE_
 
-		#pragma pack(push, 1)
-		struct FontBinaryHeader {
-			uint32_t magic ;
-			uint16_t version ;
-			uint16_t entrySize ;
-			uint32_t count ;
-			uint64_t timestamp ;
-			uint64_t reserved1 ;
-			uint64_t reserved2 ;
-			
-			FontBinaryHeader() noexcept : magic(0x534E5446), version(3), entrySize(sizeof(Font)), count(0), timestamp(0), reserved1(0), reserved2(0) {}
-			
-			[[nodiscard]] bool IsValid() const noexcept {
-				return magic == 0x534E5446 && version == 3 && entrySize == sizeof(Font) ;
-			}
-		} ;
-		#pragma pack(pop)
-
-		static_assert(sizeof(FontBinaryHeader) == 36, "Header must be 36 bytes") ;
-
-		struct DumpOptions {
-			std::string out_path_csv = "installed_fonts.csv" ;
-			std::string out_path_bin = "installed_fonts.bin" ;
-			bool write_csv = true ;
-			bool write_binary = true ;
-			bool write_bom = true ;
-			bool write_header = true ;
-			size_t reserve_bytes = 1 << 20 ;
-			uint32_t charset = DEFAULT_CHARSET ;
-		} ;
-
-		void Trim(std::string& s) noexcept {
-			auto it = s.begin() ;
-			while (it != s.end() && std::isspace(static_cast<unsigned char>(*it))) ++it ;
-			s.erase(s.begin(), it) ;
-			
-			auto rit = s.rbegin() ;
-			while (rit != s.rend() && std::isspace(static_cast<unsigned char>(*rit))) ++rit ;
-			s.erase(rit.base(), s.end()) ;
+	#pragma pack(push, 1)
+	struct FontBinaryHeader {
+		uint32_t magic ;
+		uint16_t version ;
+		uint16_t entrySize ;
+		uint32_t count ;
+		uint64_t timestamp ;
+		uint64_t reserved1 ;
+		uint64_t reserved2 ;
+		
+		FontBinaryHeader() noexcept : magic(0x534E5446), version(3), entrySize(sizeof(Font)), count(0), timestamp(0), reserved1(0), reserved2(0) {}
+		
+		[[nodiscard]] bool IsValid() const noexcept {
+			return magic == 0x534E5446 && version == 3 && entrySize == sizeof(Font) ;
 		}
+	} ;
+	#pragma pack(pop)
 
-		void AppendCSVField(std::string& out, std::string_view s) {
-			const char* p = s.data() ;
-			const char* end = p + s.size() ;
-			bool needQuote = false ;
-			
-			for ( ; p != end ; ++p) {
-				const char c = *p ;
-				if (c == '"' || c == ',' || c == '\n' || c == '\r') {
-					needQuote = true ;
-					break ;
-				}
-			}
-			
-			if (!needQuote) {
-				out.append(s.data(), s.size()) ;
-				return ;
-			}
-			
-			out.push_back('"') ;
-			for (char c : s) {
-				if (c == '"') out.append("\"\"") ;
-				else out.push_back(c) ;
-			}
-			out.push_back('"') ;
-		}
+	static_assert(sizeof(FontBinaryHeader) == 36, "Header must be 36 bytes") ;
 
-		struct CollectContext {
-			std::set<std::wstring> families ;
-		} ;
+	struct DumpOptions {
+		std::string out_path_csv = "installed_fonts.csv" ;
+		std::string out_path_bin = "installed_fonts.bin" ;
+		bool write_csv = true ;
+		bool write_binary = true ;
+		bool write_bom = true ;
+		bool write_header = true ;
+		size_t reserve_bytes = 1 << 20 ;
+		uint32_t charset = DEFAULT_CHARSET ;
+	} ;
 
-		int CALLBACK CollectFontFamiliesProc(const LOGFONTW* lpelfe, const TEXTMETRICW*, DWORD, LPARAM lParam) {
-			if (!lpelfe || !lParam) return 1 ;
-			auto* ctx = reinterpret_cast<CollectContext*>(lParam) ;
-			ctx->families.insert(lpelfe->lfFaceName) ;
-			return 1 ;
-		}
+	void Trim(std::string& s) noexcept {
+		auto it = s.begin() ;
+		while (it != s.end() && std::isspace(static_cast<unsigned char>(*it))) ++it ;
+		s.erase(s.begin(), it) ;
+		
+		auto rit = s.rbegin() ;
+		while (rit != s.rend() && std::isspace(static_cast<unsigned char>(*rit))) ++rit ;
+		s.erase(rit.base(), s.end()) ;
+	}
 
-		void GetCharacterWidths(HDC hdc, Font& entry) noexcept {
-			int32_t widths[Font::CHAR_COUNT_] ;
-			
-			if (GetCharWidth32W(hdc, Font::CHAR_START_, Font::CHAR_END_, widths)) {
-				for (int i = 0 ; i < Font::CHAR_COUNT_ ; i++) {
-					entry.char_widths_[i] = static_cast<float>(widths[i]) ;
-				}
-			} else {
-				for (int i = 0 ; i < Font::CHAR_COUNT_ ; i++) {
-					entry.char_widths_[i] = 0.0f ;
-				}
+	void AppendCSVField(std::string& out, std::string_view s) {
+		const char* p = s.data() ;
+		const char* end = p + s.size() ;
+		bool needQuote = false ;
+		
+		for ( ; p != end ; ++p) {
+			const char c = *p ;
+			if (c == '"' || c == ',' || c == '\n' || c == '\r') {
+				needQuote = true ;
+				break ;
 			}
 		}
+		
+		if (!needQuote) {
+			out.append(s.data(), s.size()) ;
+			return ;
+		}
+		
+		out.push_back('"') ;
+		for (char c : s) {
+			if (c == '"') out.append("\"\"") ;
+			else out.push_back(c) ;
+		}
+		out.push_back('"') ;
+	}
 
-		[[nodiscard]] std::optional<Font> TryCreateFont(HDC hdc, const std::wstring& fontname, int reqWeight, bool reqItalic) noexcept {
-			LOGFONTW lf{} ;
-			wcscpy_s(lf.lfFaceName, fontname.c_str()) ;
-			lf.lfHeight = -16 ;
-			lf.lfWeight = reqWeight ;
-			lf.lfItalic = reqItalic ? TRUE : FALSE ;
-			lf.lfCharSet = DEFAULT_CHARSET ;
-			lf.lfQuality = CLEARTYPE_QUALITY ;
-			
-			HFONT hFont = CreateFontIndirectW(&lf) ;
-			if (!hFont) {
-				return std::nullopt ;
+	struct CollectContext {
+		std::set<std::wstring> families ;
+	} ;
+
+	int CALLBACK CollectFontFamiliesProc(const LOGFONTW* lpelfe, const TEXTMETRICW*, DWORD, LPARAM lParam) {
+		if (!lpelfe || !lParam) return 1 ;
+		auto* ctx = reinterpret_cast<CollectContext*>(lParam) ;
+		ctx->families.insert(lpelfe->lfFaceName) ;
+		return 1 ;
+	}
+
+	void GetCharacterWidths(HDC hdc, Font& entry) noexcept {
+		int32_t widths[Font::CHAR_COUNT_] ;
+		
+		if (GetCharWidth32W(hdc, Font::CHAR_START_, Font::CHAR_END_, widths)) {
+			for (int i = 0 ; i < Font::CHAR_COUNT_ ; i++) {
+				entry.char_widths_[i] = static_cast<float>(widths[i]) ;
 			}
-			
-			HGDIOBJ oldFont = SelectObject(hdc, hFont) ;
-			wchar_t actualName[256] ;
-			const int nameLen = GetTextFaceW(hdc, 256, actualName) ;
-			if (nameLen <= 0) {
-				SelectObject(hdc, oldFont) ;
-				DeleteObject(hFont) ;
-				return std::nullopt ;
+		} else {
+			for (int i = 0 ; i < Font::CHAR_COUNT_ ; i++) {
+				entry.char_widths_[i] = 0.0f ;
 			}
-			
-			TEXTMETRICW tm{} ;
-			if (!GetTextMetricsW(hdc, &tm)) {
-				SelectObject(hdc, oldFont) ;
-				DeleteObject(hFont) ;
-				return std::nullopt ;
-			}
-			
-			char nameBuffer[512] ;
-			const int utf8Len = WideCharToMultiByte(
-				CP_UTF8, 0, actualName, nameLen, 
-				nameBuffer, sizeof(nameBuffer), nullptr, nullptr) ;
-			
-			if (utf8Len <= 0) {
-				SelectObject(hdc, oldFont) ;
-				DeleteObject(hFont) ;
-				return std::nullopt ;
-			}
-			
-			std::string name(nameBuffer, utf8Len) ;
-			Trim(name) ;
-			
-			Font entry{} ;
-			entry.SetFontName(name) ;
-			entry.height_ = static_cast<float>(tm.tmHeight) ;
-			entry.ascent_ = static_cast<float>(tm.tmAscent) ;
-			entry.descent_ = static_cast<float>(tm.tmDescent) ;
-			entry.weight_ = static_cast<float>(tm.tmWeight) ;
-			const bool isBold = (tm.tmWeight >= FW_BOLD) ;
-			const bool isItalic = (tm.tmItalic != 0) ;
-			entry.style_ = static_cast<FontStyle>((isBold ? 1 : 0) | (isItalic ? 2 : 0)) ;
-			GetCharacterWidths(hdc, entry) ;
+		}
+	}
+
+	[[nodiscard]] std::optional<Font> TryCreateFont(HDC hdc, const std::wstring& fontname, int reqWeight, bool reqItalic) noexcept {
+		LOGFONTW lf{} ;
+		wcscpy_s(lf.lfFaceName, fontname.c_str()) ;
+		lf.lfHeight = -16 ;
+		lf.lfWeight = reqWeight ;
+		lf.lfItalic = reqItalic ? TRUE : FALSE ;
+		lf.lfCharSet = DEFAULT_CHARSET ;
+		lf.lfQuality = CLEARTYPE_QUALITY ;
+		
+		HFONT hFont = CreateFontIndirectW(&lf) ;
+		if (!hFont) {
+			return std::nullopt ;
+		}
+		
+		HGDIOBJ oldFont = SelectObject(hdc, hFont) ;
+		wchar_t actualName[256] ;
+		const int nameLen = GetTextFaceW(hdc, 256, actualName) ;
+		if (nameLen <= 0) {
 			SelectObject(hdc, oldFont) ;
 			DeleteObject(hFont) ;
-			
-			return entry ;
+			return std::nullopt ;
+		}
+		
+		TEXTMETRICW tm{} ;
+		if (!GetTextMetricsW(hdc, &tm)) {
+			SelectObject(hdc, oldFont) ;
+			DeleteObject(hFont) ;
+			return std::nullopt ;
+		}
+		
+		char nameBuffer[512] ;
+		const int utf8Len = WideCharToMultiByte(
+			CP_UTF8, 0, actualName, nameLen, 
+			nameBuffer, sizeof(nameBuffer), nullptr, nullptr) ;
+		
+		if (utf8Len <= 0) {
+			SelectObject(hdc, oldFont) ;
+			DeleteObject(hFont) ;
+			return std::nullopt ;
+		}
+		
+		std::string name(nameBuffer, utf8Len) ;
+		Trim(name) ;
+		
+		Font entry{} ;
+		entry.SetFontName(name) ;
+		entry.height_ = static_cast<float>(tm.tmHeight) ;
+		entry.ascent_ = static_cast<float>(tm.tmAscent) ;
+		entry.descent_ = static_cast<float>(tm.tmDescent) ;
+		entry.weight_ = static_cast<float>(tm.tmWeight) ;
+		const bool isBold = (tm.tmWeight >= FW_BOLD) ;
+		const bool isItalic = (tm.tmItalic != 0) ;
+		entry.style_ = static_cast<FontStyle>((isBold ? 1 : 0) | (isItalic ? 2 : 0)) ;
+		entry.is_valid_ = true ;
+		GetCharacterWidths(hdc, entry) ;
+		SelectObject(hdc, oldFont) ;
+		DeleteObject(hFont) ;
+		
+		return entry ;
+	}
+
+	[[nodiscard]] inline std::optional<std::pair<size_t, size_t>> DumpInstalledFonts(const DumpOptions& opt) noexcept {
+		HDC screen = GetDC(nullptr) ;
+		if (!screen) {
+			return std::nullopt ;
+		}
+		
+		HDC dc = CreateCompatibleDC(screen) ;
+		ReleaseDC(nullptr, screen) ;
+		if (!dc) {
+			return std::nullopt ;
 		}
 
-		[[nodiscard]] inline std::optional<std::pair<size_t, size_t>> DumpInstalledFonts(const DumpOptions& opt) noexcept {
-			HDC screen = GetDC(nullptr) ;
-			if (!screen) {
-				return std::nullopt ;
+		#ifdef FONT_DEBUG
+			logger::info("DumpInstalledFonts - Collecting font families...") ;
+		#endif
+
+		CollectContext collectCtx ;
+		LOGFONTW lf{} ;
+		lf.lfCharSet = static_cast<BYTE>(opt.charset) ;
+		EnumFontFamiliesExW(dc, &lf, CollectFontFamiliesProc, reinterpret_cast<LPARAM>(&collectCtx), 0) ;
+		
+		const size_t familyCount = collectCtx.families.size() ;
+
+		#ifdef FONT_DEBUG
+			logger::info("Found font families", familyCount) ;
+		#endif
+
+		std::vector<Font> entries ;
+		entries.reserve(familyCount * 4) ;
+		
+		std::string csvOutput ;
+		if (opt.write_csv) {
+			csvOutput.reserve(opt.reserve_bytes) ;
+			if (opt.write_bom) csvOutput.append("\xEF\xBB\xBF") ;
+			if (opt.write_header) {
+				csvOutput.append("Name,Height,Ascent,Descent,Weight,Style,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126\n") ;
 			}
-			
-			HDC dc = CreateCompatibleDC(screen) ;
-			ReleaseDC(nullptr, screen) ;
-			if (!dc) {
-				return std::nullopt ;
-			}
-
-			#ifdef FONT_DEBUG
-				logger::info("DumpInstalledFonts - Collecting font families...") ;
-			#endif
-
-			CollectContext collectCtx ;
-			LOGFONTW lf{} ;
-			lf.lfCharSet = static_cast<BYTE>(opt.charset) ;
-			EnumFontFamiliesExW(dc, &lf, CollectFontFamiliesProc, reinterpret_cast<LPARAM>(&collectCtx), 0) ;
-			
-			const size_t familyCount = collectCtx.families.size() ;
-
-			#ifdef FONT_DEBUG
-				logger::info("Found font families", familyCount) ;
-			#endif
-
-			std::vector<Font> entries ;
-			entries.reserve(familyCount * 4) ;
-			
-			std::string csvOutput ;
-			if (opt.write_csv) {
-				csvOutput.reserve(opt.reserve_bytes) ;
-				if (opt.write_bom) csvOutput.append("\xEF\xBB\xBF") ;
-				if (opt.write_header) {
-					csvOutput.append("Name,Height,Ascent,Descent,Weight,Style,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126\n") ;
-				}
-			}
-			
-			std::unordered_set<std::string> seen ;
-			seen.reserve(familyCount * 4) ;
-			
-			constexpr std::pair<int, bool> styles[4] = {
-				{FW_NORMAL, false},
-				{FW_BOLD, false},
-				{FW_NORMAL, true},
-				{FW_BOLD, true}
-			} ;
-			
-			for (const auto& family : collectCtx.families) {
-				for (const auto& [weight, italic] : styles) {
-					auto entryOpt = TryCreateFont(dc, family, weight, italic) ;
-					if (!entryOpt) continue ;
-					
-					Font entry = *entryOpt ;
-					
-					std::string key ;
-					key.reserve(entry.GetFontName().size() + 2) ;
-					key.append(entry.GetFontName()) ;
-					key.push_back('|') ;
-					key.push_back('0' + static_cast<char>(entry.style_)) ;
-					
-					if (!seen.insert(key).second) continue ;
-					
-					entries.push_back(entry) ;
-					
-					if (opt.write_csv) {
-						AppendCSVField(csvOutput, entry.GetFontName()) ;
-						csvOutput.push_back(',') ;
-						csvOutput.append(std::to_string(entry.height_)) ;
-						csvOutput.push_back(',') ;
-						csvOutput.append(std::to_string(entry.ascent_)) ;
-						csvOutput.push_back(',') ;
-						csvOutput.append(std::to_string(entry.descent_)) ;
-						csvOutput.push_back(',') ;
-						csvOutput.append(std::to_string(entry.weight_)) ;
-						csvOutput.push_back(',') ;
-						csvOutput.append(std::to_string(static_cast<int>(entry.style_))) ;
-						csvOutput.push_back(',') ;
-						for (const auto& w : entry.char_widths_) {
-							csvOutput.append(std::to_string(w)) ;
-							csvOutput.push_back((&w == entry.char_widths_.end()) ? '\n' : ',') ;
-						}
+		}
+		
+		std::unordered_set<std::string> seen ;
+		seen.reserve(familyCount * 4) ;
+		
+		constexpr std::pair<int, bool> styles[4] = {
+			{FW_NORMAL, false},
+			{FW_BOLD, false},
+			{FW_NORMAL, true},
+			{FW_BOLD, true}
+		} ;
+		
+		for (const auto& family : collectCtx.families) {
+			for (const auto& [weight, italic] : styles) {
+				auto entryOpt = TryCreateFont(dc, family, weight, italic) ;
+				if (!entryOpt) continue ;
+				
+				Font entry = *entryOpt ;
+				
+				std::string key ;
+				key.reserve(entry.GetFontName().size() + 2) ;
+				key.append(entry.GetFontName()) ;
+				key.push_back('|') ;
+				key.push_back('0' + static_cast<char>(entry.style_)) ;
+				
+				if (!seen.insert(key).second) continue ;
+				
+				entries.push_back(entry) ;
+				
+				if (opt.write_csv) {
+					AppendCSVField(csvOutput, entry.GetFontName()) ;
+					csvOutput.push_back(',') ;
+					csvOutput.append(std::to_string(entry.height_)) ;
+					csvOutput.push_back(',') ;
+					csvOutput.append(std::to_string(entry.ascent_)) ;
+					csvOutput.push_back(',') ;
+					csvOutput.append(std::to_string(entry.descent_)) ;
+					csvOutput.push_back(',') ;
+					csvOutput.append(std::to_string(entry.weight_)) ;
+					csvOutput.push_back(',') ;
+					csvOutput.append(std::to_string(static_cast<int>(entry.style_))) ;
+					csvOutput.push_back(',') ;
+					for (size_t i = 0; i < entry.char_widths_.size(); ++i) {
+						csvOutput.append(std::to_string(entry.char_widths_[i]));
+						csvOutput.push_back((i == entry.char_widths_.size() - 1) ? '\n' : ',');
 					}
 				}
 			}
-
-			DeleteDC(dc) ;
-
-			size_t csvBytes = 0 ;
-			if (opt.write_csv && !csvOutput.empty()) {
-				std::ofstream csvFile(opt.out_path_csv, std::ios::binary) ;
-				if (csvFile) {
-					csvFile.write(csvOutput.data(), static_cast<std::streamsize>(csvOutput.size())) ;
-					csvBytes = csvOutput.size() ;
-
-					#ifdef FONT_DEBUG
-						logger::info("CSV saved", opt.out_path_csv) ;
-					#endif
-				}
-			}
-
-			size_t binBytes = 0 ;
-			if (opt.write_binary && !entries.empty()) {
-				std::ofstream binFile(opt.out_path_bin, std::ios::binary) ;
-				if (binFile) {
-					FontBinaryHeader header ;
-					header.count = static_cast<uint32_t>(entries.size()) ;
-					header.timestamp = static_cast<uint64_t>(time(nullptr)) ;
-					
-					binFile.write(reinterpret_cast<const char*>(&header), sizeof(header)) ;
-					binFile.write(reinterpret_cast<const char*>(entries.data()), static_cast<std::streamsize>(entries.size() * sizeof(Font))) ;
-					
-					binBytes = sizeof(header) + entries.size() * sizeof(Font) ;
-
-					#ifdef FONT_DEBUG
-						logger::info("Binary saved", opt.out_path_bin) ;
-						logger::info("Entry size", sizeof(Font)) ;
-					#endif
-
-				}
-			}
-
-			return std::make_pair(entries.size(), std::max(csvBytes, binBytes)) ;
 		}
 
-	#endif
+		DeleteDC(dc) ;
 
-	#undef FONT_SCOPE_
+		size_t csvBytes = 0 ;
+		if (opt.write_csv && !csvOutput.empty()) {
+			std::ofstream csvFile(opt.out_path_csv, std::ios::binary) ;
+			if (csvFile) {
+				csvFile.write(csvOutput.data(), static_cast<std::streamsize>(csvOutput.size())) ;
+				csvBytes = csvOutput.size() ;
+
+				#ifdef FONT_DEBUG
+					logger::info("CSV saved", opt.out_path_csv) ;
+				#endif
+			}
+		}
+
+		size_t binBytes = 0 ;
+		if (opt.write_binary && !entries.empty()) {
+			std::ofstream binFile(opt.out_path_bin, std::ios::binary) ;
+			if (binFile) {
+				FontBinaryHeader header ;
+				header.count = static_cast<uint32_t>(entries.size()) ;
+				header.timestamp = static_cast<uint64_t>(time(nullptr)) ;
+				
+				binFile.write(reinterpret_cast<const char*>(&header), sizeof(header)) ;
+				binFile.write(reinterpret_cast<const char*>(entries.data()), static_cast<std::streamsize>(entries.size() * sizeof(Font))) ;
+				
+				binBytes = sizeof(header) + entries.size() * sizeof(Font) ;
+
+				#ifdef FONT_DEBUG
+					logger::info("Binary saved", opt.out_path_bin) ;
+					logger::info("Entry size", sizeof(Font)) ;
+				#endif
+
+			}
+		}
+
+		return std::make_pair(entries.size(), std::max(csvBytes, binBytes)) ;
+	}
+
 
 	[[nodiscard]] inline std::optional<std::unordered_map<std::string, Font>> LoadFontsFromBinary(const std::string& filename) noexcept {
-		#define FONT_SCOPE_
 
 		std::ifstream file(filename, std::ios::binary) ;
 		if (!file) {
@@ -490,12 +481,10 @@ namespace zketch {
 			fontMap.emplace(std::move(key), std::move(entry)) ;
 		}
 
-		#undef FONT_SCOPE_
 		return fontMap ;
 	}
 
 	[[nodiscard]] inline const Font* FindFont(const std::unordered_map<std::string, Font>& fontMap, std::string_view name, FontStyle style = FontStyle::Regular) noexcept {
-		#define FONT_SCOPE_
 
 		std::string key ;
 		key.reserve(name.size() + 2) ;
@@ -506,11 +495,9 @@ namespace zketch {
 		auto it = fontMap.find(key) ;
 		return (it != fontMap.end()) ? &it->second : nullptr ;
 
-		#undef FONT_SCOPE_
 	}
 
 	inline bool CreateDumpFonts(const char* filenameWithoutExt, uint32_t reserve_bytes = 1 << 20, bool write_csv = false, bool write_binary = true) noexcept {
-		#define FONT_SCOPE_
 
 		DumpOptions opt ;
 		opt.out_path_csv = filenameWithoutExt + std::string(".csv")  ;
@@ -527,6 +514,5 @@ namespace zketch {
 
 		return true ;
 
-		#undef FONT_SCOPE_
 	}
 }
