@@ -12,6 +12,7 @@ namespace zketch {
 
 	private :
 		static inline std::unordered_map<HWND, Window*> g_windows_ ;
+		static inline std::unordered_map<std::string, Font> g_fonts_installed ;
 		static inline bool app_is_runing_ = true ;
 
 		static void RegisterWindow(HWND hwnd, Window* window) noexcept {
@@ -70,6 +71,46 @@ namespace zketch {
 
 		static bool IsRunning() noexcept {
 			return app_is_runing_ ;
+		}
+
+		static bool LoadFonts() noexcept {
+			auto test = LoadFontsFromBinary("../bin/fonts.bin") ;
+			if (!test) {
+
+				#ifdef APPLICATION_DEBUG
+					logger::error("Application::LoadFont - Failed load fonts.") ;
+					logger::info("Application::LoadFont - Trying to create dump fonts.") ;
+				#endif
+
+				if (!CreateDumpFonts("fonts")) {
+
+					#ifdef APPLICATION_DEBUG
+						logger::error("Application::LoadFont - Failed to create dump fonts.") ;
+					#endif
+
+					return false ;
+				}
+
+				#ifdef APPLICATION_DEBUG
+					logger::info("Application::LoadFont - Successfully create dump font.") ;
+					logger::info("Application::LoadFont - Trying to load fonts.") ;
+				#endif
+
+				test = LoadFontsFromBinary("res/fonts.bin") ;
+
+				if (!test) {
+
+					#ifdef APPLICATION_DEBUG
+						logger::error("Application::LoadFont - Failed load fonts.") ;
+					#endif
+
+					return false ;
+				}
+			}
+			#ifdef APPLICATION_DEBUG
+				logger::info("Application::LoadFont - Successfully load fonts.") ;
+			#endif
+			return true ;
 		}
 	} ;
 

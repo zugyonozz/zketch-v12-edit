@@ -8,8 +8,8 @@ namespace zketch {
     private:
         bool is_hovered_ = false ;
         bool is_pressed_ = false ;
-        std::wstring label_ ;
-        Font font_ ;
+		std::wstring label_ ;
+        std::unique_ptr<Font> font_ ;
         std::function<void(Canvas*, const Button&)> drawing_logic_ ;
         std::function<void()> on_click_ ;
 
@@ -26,14 +26,19 @@ namespace zketch {
         }
 
     public:
-        Button(const RectF& bound, const std::wstring& label = L"", const Font& font = Font()) noexcept : label_(label), font_(font) {
+        Button(const RectF& bound, const Font& font, const std::wstring& label = L"") noexcept : label_(label) {
             bound_ = bound ;
             canvas_ = std::make_unique<Canvas>() ;
             canvas_->Create(bound_.GetSize()) ;
+			font_ = std::make_unique<Font>() ;
+			*font_ = font ;
 
-            SetDrawingLogic([](Canvas* canvas, const Button& button) {
+            SetDrawingLogic([&](Canvas* canvas, const Button& button) {
                 Renderer render ;
-                if (!render.Begin(*canvas)) return ;
+                if (!render.Begin(*canvas)) {
+					return ;
+				}
+
 				render.Clear(Transparent) ;
                 Color button_color ;
                 Color border_color ;
@@ -56,7 +61,7 @@ namespace zketch {
                 if (!button.GetLabel().empty()) {
                     Color text_color = rgba(255, 255, 255, 255) ;
                     Point text_pos = {static_cast<int32_t>(rect.w / 2 - 30),static_cast<int32_t>(rect.h / 2 - 10)} ;
-                    render.DrawString(button.GetLabel(), text_pos, text_color, button.GetFont()) ;
+                    render.DrawString(label, text_pos, text_color, *button.GetFont()) ;
                 }
 
                 render.End() ;
@@ -112,7 +117,7 @@ namespace zketch {
 
         RectF GetRelativeBound() const noexcept { return {0, 0, bound_.w, bound_.h} ; }
         const std::wstring& GetLabel() const noexcept { return label_ ; }
-        const Font& GetFont() const noexcept { return font_ ; }
+        Font* GetFont() const noexcept { return font_.get() ; }
 
         bool IsHovered() const noexcept { return is_hovered_ ; }
         bool IsPressed() const noexcept { return is_pressed_ ; }

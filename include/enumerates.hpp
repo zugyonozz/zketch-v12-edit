@@ -211,13 +211,11 @@ namespace zketch {
 		Hover
 	} ;
 
-	enum class FontStyle : uint32_t {
-        Regular     = Gdiplus::FontStyleRegular,
-        Bold        = Gdiplus::FontStyleBold,
-        Italic      = Gdiplus::FontStyleItalic,
-        BoldItalic  = Gdiplus::FontStyleBold | Gdiplus::FontStyleItalic,
-        Underline   = Gdiplus::FontStyleUnderline,
-        Strikeout   = Gdiplus::FontStyleStrikeout
+	enum class FontStyle : uint8_t {
+        Regular,
+        Bold,
+        Italic,
+		BoldItalic = Bold | Regular,
     } ;
 
 	inline WindowState operator|(WindowState a, WindowState b) noexcept {

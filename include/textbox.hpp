@@ -4,6 +4,7 @@
 namespace zketch {
 	class TextBox : public Widget<TextBox> {
 		friend class Widget<TextBox> ;
+		
     private:
         std::wstring text_ ;
         Font font_ ;

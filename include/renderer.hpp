@@ -357,16 +357,25 @@ namespace zketch {
 				return ;
 			}
 
+			if (font.IsValid()) {
+
+				#ifdef RENDERER_DEBUG
+					logger::warning("Renderer::DrawString - Font isn't valid") ;
+				#endif
+
+				return ;
+
+			}
+
 			canvas_target_->MarkInvalidate() ;
 			Gdiplus::SolidBrush brush(color) ;
-			Gdiplus::FontFamily family(font.GetFamily().c_str()) ;
-			Gdiplus::Font f(&family, font.GetSize(), font.GetStyle(), Gdiplus::UnitPixel) ;
+			Gdiplus::Font used_font = font ;
 			gfx_->SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit) ;
 			Gdiplus::RectF layout(static_cast<Gdiplus::REAL>(pos.x), static_cast<Gdiplus::REAL>(pos.y), static_cast<Gdiplus::REAL>(canvas_target_ ? canvas_target_->GetWidth() - pos.x : 0), static_cast<Gdiplus::REAL>(canvas_target_ ? canvas_target_->GetHeight() - pos.y : 0));
 			Gdiplus::StringFormat fmt ;
 			fmt.SetAlignment(Gdiplus::StringAlignmentNear) ;
 			fmt.SetLineAlignment(Gdiplus::StringAlignmentNear) ;
-			gfx_->DrawString(text.c_str(), -1, &f, layout, &fmt, &brush) ;
+			gfx_->DrawString(text.c_str(), -1, &used_font, layout, &fmt, &brush) ;
 		}
 
 		void DrawPolygon(const Vertex& vertices, const Color& color, float thickness = 1.0f) noexcept {

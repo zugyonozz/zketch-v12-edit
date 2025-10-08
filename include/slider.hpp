@@ -21,6 +21,7 @@ namespace zketch {
         bool is_dragging_ = false ;
         bool is_hovered_ = false ;
 		std::unique_ptr<Canvas> thumb_canvas_ ;
+        bool thumb_needs_update_ = true ;
         std::function<void(Canvas*, const Slider&)> drawing_logic_ ;
         
         void UpdateValueFromThumb() noexcept {
@@ -57,16 +58,79 @@ namespace zketch {
             }
         }
 
+        void RenderThumb() noexcept {
+            if (!thumb_canvas_ || !thumb_canvas_->IsValid()) {
+                return ;
+            }
+
+            Renderer render ;
+            if (!render.Begin(*thumb_canvas_)) {
+                return ;
+            }
+
+            render.Clear(Transparent) ;
+            Color thumb_color = is_hovered_ || is_dragging_ ? 
+                rgba(135, 206, 250, 255) : rgba(100, 149, 237, 255) ;
+            
+            float radius = std::min(thumb_bound_.w, thumb_bound_.h) / 2.0f ;
+            render.FillRectRounded({PointF{}, thumb_bound_.GetSize()}, thumb_color, radius) ;
+            render.End() ;
+
+            thumb_needs_update_ = false ;
+        }
+
+        void RenderTrack() noexcept {
+            if (!canvas_ || !canvas_->IsValid()) {
+                return ;
+            }
+
+            Renderer render ;
+            if (!render.Begin(*canvas_)) {
+                return ;
+            }
+
+            render.Clear(Transparent) ;
+            
+            Color track_color = rgba(220, 220, 220, 255) ;
+            render.FillRect(GetRelativeTrackBound(), track_color) ;
+            
+            render.End() ;
+        }
+
 		void UpdateImpl() noexcept {
-            if (!drawing_logic_) {
+            if (!IsValid() || !thumb_canvas_ || !thumb_canvas_->IsValid()) {
 				return ;
 			}
 
-            if (!IsValid()) {
-				return ;
-			}
+            if (drawing_logic_) {
+                drawing_logic_(canvas_.get(), *this) ;
+                return ;
+            }
 
-            drawing_logic_(canvas_.get(), *this) ;
+            if (thumb_needs_update_) {
+                RenderThumb() ;
+            }
+
+            if (update_) {
+                RenderTrack() ;
+            }
+
+            Renderer render ;
+            if (render.Begin(*canvas_)) {
+                if (!update_ && thumb_needs_update_) {
+                    RenderTrack() ;
+                }
+                
+                if (update_) {
+                    Color track_color = rgba(220, 220, 220, 255) ;
+                    render.FillRect(GetRelativeTrackBound(), track_color) ;
+                }
+
+                render.DrawCanvas(thumb_canvas_.get(), GetRelativeThumbBound().GetPos()) ;
+                render.End() ;
+            }
+
+            update_ = false ;
         }
 
     public:
@@ -91,32 +155,18 @@ namespace zketch {
             canvas_->Create(bound_.GetSize()) ;
 			thumb_canvas_->Create(thumb) ;
 
-            SetDrawingLogic([&](Canvas* canvas, const Slider& slider) {
-                Renderer render ;
-				if (render.Begin(*thumb_canvas_)) {
-					render.Clear(Transparent) ;
-					Color thumb_color = slider.IsHovered() || slider.IsDragging() ? rgba(135, 206, 250, 255) : rgba(100, 149, 237, 255) ;
-					float radius = std::min(thumb_bound_.w, thumb_bound_.h) / 2.0f ;
-					render.FillRectRounded({PointF{}, thumb_bound_.GetSize()}, thumb_color, radius) ;
-				}
-
-                if (!render.Begin(*canvas)) {
-					render.Clear(Transparent) ;
-					Color track_color = rgba(220, 220, 220, 255) ;
-					render.FillRect(slider.GetRelativeTrackBound(), track_color) ;
-					render.DrawCanvas(thumb_canvas_.get(), GetRelativeThumbBound().GetPos()) ;
-				}
-
-                render.End() ;
-            }) ;
+            RenderThumb() ;
+            RenderTrack() ;
+            update_ = true ;
         }
 
         bool OnHover(const PointF& mouse_pos) noexcept {
             bool state = thumb_bound_.Contain(mouse_pos) ;
             if (state != is_hovered_) {
                 is_hovered_ = state ;
+                thumb_needs_update_ = true ;
                 update_ = true ;
-                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Hover, value_)) ;
+                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Hover, value_, this)) ;
             }
             return state ;
         }
@@ -124,9 +174,12 @@ namespace zketch {
         bool OnPress(const PointF& mouse_pos) noexcept {
             if (thumb_bound_.Contain(mouse_pos)) {
                 is_dragging_ = true ;
-                offset_ = orientation_ == Vertical ? mouse_pos.y - thumb_bound_.y : mouse_pos.x - thumb_bound_.x ;
+                offset_ = orientation_ == Vertical ? 
+                    mouse_pos.y - thumb_bound_.y : 
+                    mouse_pos.x - thumb_bound_.x ;
+                thumb_needs_update_ = true ;
                 update_ = true ;
-                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Start, value_)) ;
+                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Start, value_, this)) ;
                 return true ;
             }
             
@@ -146,10 +199,13 @@ namespace zketch {
                 }
                 UpdateValueFromThumb() ;
                 is_dragging_ = true ;
-                offset_ = orientation_ == Vertical ? thumb_bound_.h / 2.0f : thumb_bound_.w / 2.0f ;
+                offset_ = orientation_ == Vertical ? 
+                    thumb_bound_.h / 2.0f : 
+                    thumb_bound_.w / 2.0f ;
+                thumb_needs_update_ = true ;
                 update_ = true ;
-                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Start, value_)) ;
-                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Changed, value_)) ;
+                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Start, value_, this)) ;
+                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Changed, value_, this)) ;
                 return true ;
             }
             
@@ -159,8 +215,9 @@ namespace zketch {
         bool OnRelease() noexcept {
             if (is_dragging_) {
                 is_dragging_ = false ;
+                thumb_needs_update_ = true ;
                 update_ = true ;
-                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::End, value_)) ;
+                EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::End, value_, this)) ;
                 return true ;
             }
             return false ;
@@ -187,19 +244,23 @@ namespace zketch {
             }
             UpdateValueFromThumb() ;
             update_ = true ;
-            EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Changed, value_)) ;
+            EventSystem::PushEvent(Event::CreateSliderEvent(SliderState::Changed, value_, this)) ;
             return true ;
         }
 
         void SetDrawingLogic(std::function<void(Canvas*, const Slider&)> drawing_logic) noexcept {
             drawing_logic_ = std::move(drawing_logic) ;
             update_ = true ;
+            thumb_needs_update_ = true ;
         }
         
         void SetValue(float value) noexcept {
+            float old_value = value_ ;
             value_ = std::clamp(value, min_value_, max_value_) ;
-            UpdateThumbFromValue() ;
-            update_ = true ;
+            if (old_value != value_) {
+                UpdateThumbFromValue() ;
+                update_ = true ;
+            }
         }
         
         void SetRange(float min_val, float max_val) noexcept {

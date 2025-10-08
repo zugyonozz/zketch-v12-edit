@@ -941,4 +941,36 @@ static constexpr inline Color Yellow = rgba(255, 255, 0, 1) ;
 static constexpr inline Color Purple = rgba(255, 0, 255, 1) ;
 static constexpr inline Color Cyan = rgba(0, 255, 255, 1) ;
 
+inline std::wstring StringToWideString(const std::string& str) noexcept {
+	if (str.empty()) {
+		return L"" ;
+	}
+
+	int len = MultiByteToWideChar(CP_UTF8, 0, str.data(), -1, nullptr, 0) ;
+	std::wstring wstr(len, L'\0') ;
+	MultiByteToWideChar(CP_UTF8, 0, str.data(), -1, &wstr[0], len) ;
+
+	if (!wstr.empty() && wstr.back() == L'\0') {
+		wstr.pop_back() ;
+	}
+
+	return wstr ;
+}
+
+inline std::string WideStringToString(const std::wstring& wstr) noexcept {
+    if (wstr.empty()) {
+        return "" ;
+    }
+
+    int len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr) ;
+    if (len == 0) {
+        return "" ;
+    }
+
+    std::string result(len - 1, '\0') ;
+    WideCharToMultiByte( CP_UTF8, 0, wstr.c_str(), -1, result.data(), len, nullptr, nullptr) ;
+
+    return result;
+}
+
 }
