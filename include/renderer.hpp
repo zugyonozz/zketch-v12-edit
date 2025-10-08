@@ -357,7 +357,7 @@ namespace zketch {
 				return ;
 			}
 
-			if (font.IsValid()) {
+			if (!font.IsValid()) {
 
 				#ifdef RENDERER_DEBUG
 					logger::warning("Renderer::DrawString - Font isn't valid") ;

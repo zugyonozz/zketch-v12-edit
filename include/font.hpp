@@ -25,13 +25,14 @@ namespace zketch {
 		static constexpr uint8_t CHAR_COUNT_ = CHAR_END_ - CHAR_START_ + 1 ;  // 95 chars
 		static constexpr size_t FONTNAME_MAX_LEN_ = 192 ;
 
-		std::array<char, FONTNAME_MAX_LEN_> fontname_ {} ;
-		FontStyle style_ = FontStyle::Regular ;
-		float height_ = 0.0f ;
-		float weight_ = 0.0f ;
-		float ascent_ = 0.0f ;
-		float descent_ = 0.0f ;
-		std::array<float, CHAR_COUNT_> char_widths_ {} ;
+		static inline std::array<char, FONTNAME_MAX_LEN_> fontname_ {} ; 
+		FontStyle style_ = FontStyle::Regular ; // masih bingung di apain
+		float scale_ = 0.0f ; // simpan scale
+		static inline float height_ = 0.0f ; // static untuk default data dan efisiensi memory
+		static inline float weight_ = 0.0f ; // static untuk default data dan efisiensi memory
+		static inline float ascent_ = 0.0f ; // static untuk default data dan efisiensi memory
+		static inline float descent_ = 0.0f ; // static untuk default data dan efisiensi memory
+		static inline std::array<float, CHAR_COUNT_> char_widths_ {} ; // static untuk default data dan efisiensi memory
 		bool is_valid_ = false ;
 		uint8_t padding_[2] {} ;  // Explicit padding for alignment
 
@@ -50,10 +51,6 @@ namespace zketch {
 		Font(const Font&) noexcept = default ;
 		Font& operator=(const Font&) noexcept = default ;
 
-		Font(const char* fontname, float size, FontStyle style) noexcept : style_(style), height_(size) {
-			SetFontNameInternal(fontname) ;
-		}
-
 		Font(Font&& o) noexcept {
 			fontname_ = o.fontname_ ;
 			o.fontname_.fill('\0') ;
@@ -62,7 +59,6 @@ namespace zketch {
 			weight_ = std::exchange(o.weight_, 0.0f) ;
 			ascent_ = std::exchange(o.ascent_, 0.0f) ;
 			descent_ = std::exchange(o.descent_, 0.0f) ;
-			char_widths_ = std::move(o.char_widths_) ;
 			is_valid_ = std::exchange(o.is_valid_, false) ;
 		}
 
@@ -75,7 +71,6 @@ namespace zketch {
 				weight_ = std::exchange(o.weight_, 0.0f) ;
 				ascent_ = std::exchange(o.ascent_, 0.0f) ;
 				descent_ = std::exchange(o.descent_, 0.0f) ;
-				char_widths_ = std::move(o.char_widths_) ;
 				is_valid_ = std::exchange(o.is_valid_, false) ;
 			}
 			return *this ;

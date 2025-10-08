@@ -12,7 +12,7 @@ namespace zketch {
 
 	private :
 		static inline std::unordered_map<HWND, Window*> g_windows_ ;
-		static inline std::unordered_map<std::string, Font> g_fonts_installed ;
+		static inline std::unordered_map<std::string, Font> g_fonts_installed_ ;
 		static inline bool app_is_runing_ = true ;
 
 		static void RegisterWindow(HWND hwnd, Window* window) noexcept {
@@ -74,43 +74,123 @@ namespace zketch {
 		}
 
 		static bool LoadFonts() noexcept {
-			auto test = LoadFontsFromBinary("../bin/fonts.bin") ;
-			if (!test) {
-
+			// Try to load from binary first
+			auto fontMapOpt = LoadFontsFromBinary("../bin/fonts.bin");
+			
+			if (!fontMapOpt) {
 				#ifdef APPLICATION_DEBUG
-					logger::error("Application::LoadFont - Failed load fonts.") ;
-					logger::info("Application::LoadFont - Trying to create dump fonts.") ;
+					logger::error("Application::LoadFont - Failed load fonts from fonts.bin");
+					logger::info("Application::LoadFont - Trying to create dump fonts.");
 				#endif
 
-				if (!CreateDumpFonts("fonts")) {
-
+				// Create dump if not exists
+				if (!CreateDumpFonts("fonts", 1 << 24, true)) {
 					#ifdef APPLICATION_DEBUG
-						logger::error("Application::LoadFont - Failed to create dump fonts.") ;
+						logger::error("Application::LoadFont - Failed to create dump fonts.");
 					#endif
-
-					return false ;
+					return false;
 				}
 
 				#ifdef APPLICATION_DEBUG
-					logger::info("Application::LoadFont - Successfully create dump font.") ;
-					logger::info("Application::LoadFont - Trying to load fonts.") ;
+					logger::info("Application::LoadFont - Successfully create dump font.");
+					logger::info("Application::LoadFont - Trying to load fonts again.");
 				#endif
 
-				test = LoadFontsFromBinary("res/fonts.bin") ;
+				// Try load again
+				fontMapOpt = LoadFontsFromBinary("fonts.bin");
 
-				if (!test) {
-
+				if (!fontMapOpt) {
 					#ifdef APPLICATION_DEBUG
-						logger::error("Application::LoadFont - Failed load fonts.") ;
+						logger::error("Application::LoadFont - Failed load fonts after dump creation.");
 					#endif
-
-					return false ;
+					return false;
 				}
 			}
+
+			// CRITICAL: Copy the fonts to static map
+			g_fonts_installed_ = std::move(*fontMapOpt);
+
 			#ifdef APPLICATION_DEBUG
-				logger::info("Application::LoadFont - Successfully load fonts.") ;
+				logger::info("Application::LoadFont - Successfully load ", g_fonts_installed_.size(), " fonts.");
 			#endif
-			return true ;
+
+			return !g_fonts_installed_.empty();
+		}
+
+		static const Font* GetFont(const std::string_view& name, FontStyle style = FontStyle::Regular) noexcept {
+			std::string key;
+			key.reserve(name.size() + 2);
+			key.append(name);
+			key.push_back('|');
+			key.push_back('0' + static_cast<char>(style));
+			
+			auto it = g_fonts_installed_.find(key);
+			if (it != g_fonts_installed_.end()) {
+				return &it->second;
+			}
+
+			#ifdef APPLICATION_DEBUG
+				logger::warning("Application::GetFont - Font not found: ", name, " style: ", static_cast<int>(style));
+			#endif
+
+			return nullptr;
+		}
+
+		static Font GetFontCopy(const std::string_view& name, FontStyle style = FontStyle::Regular) noexcept {
+			const Font* font = GetFont(name, style);
+			if (font) {
+				return *font;
+			}
+
+			#ifdef APPLICATION_DEBUG
+				logger::warning("Application::GetFontCopy - Font not found, returning invalid Font");
+			#endif
+
+			return Font(); // Return invalid font
+		}
+
+		static const Font& GetFontReference(const std::string_view& name, FontStyle style = FontStyle::Regular) noexcept {
+			const Font* font = GetFont(name, style);
+			if (font) {
+				return *font;
+			}
+
+			#ifdef APPLICATION_DEBUG
+				logger::error("Application::GetFontReference - Font not found: ", name);
+			#endif
+
+			// Return a static invalid font to avoid crash
+			static Font invalidFont;
+			return invalidFont;
+		}
+
+		static bool HasFont(const std::string_view& name, FontStyle style = FontStyle::Regular) noexcept {
+			return GetFont(name, style) != nullptr;
+		}
+
+		static size_t GetFontCount() noexcept {
+			return g_fonts_installed_.size();
+		}
+
+		static std::vector<std::string> GetAvailableFonts() noexcept {
+			std::set<std::string> uniqueNames; // Use set to avoid duplicates
+			
+			for (const auto& [key, font] : g_fonts_installed_) {
+				uniqueNames.insert(font.GetFontNameString());
+			}
+			
+			return std::vector<std::string>(uniqueNames.begin(), uniqueNames.end());
+		}
+
+		static void PrintAvailableFonts(size_t maxCount = 20) noexcept {
+			auto fonts = GetAvailableFonts();
+			
+			#ifdef APPLICATION_DEBUG
+				logger::info("Available fonts (", fonts.size(), " total, showing first ", std::min(maxCount, fonts.size()), "):");
+				for (size_t i = 0; i < std::min(maxCount, fonts.size()); ++i) {
+					logger::info("  [", i + 1, "] ", fonts[i]);
+				}
+			#endif
 		}
 	} ;
 
