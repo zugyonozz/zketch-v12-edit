@@ -144,11 +144,9 @@ namespace ___FONT_DUMP___ {
 			std::string name(nameBuffer, utf8Len) ;
 			___trim___(name) ;
 			
-			___ACCESSOR___::____accessor____::___open_access___() ;
-
+////
 			___FONT_DATA___::__font_data__ entry {} ;
-
-			___ACCESSOR___::____accessor____::___close_access___() ;
+////
 
 			entry.SetFontName(name) ;
 			entry.height_ = static_cast<float>(tm.tmHeight) ;
@@ -178,8 +176,6 @@ namespace ___FONT_DUMP___ {
 				return std::nullopt ;
 			}
 
-			___ACCESSOR___::____accessor____::___open_access___() ;
-
 			#ifdef FONT_DEBUG
 				logger::info("___dump_installed_fonts___ - Collecting font families...") ;
 			#endif
@@ -194,10 +190,10 @@ namespace ___FONT_DUMP___ {
 			#ifdef FONT_DEBUG
 				logger::info("___dump_installed_fonts___ - Found font families", familyCount) ;
 			#endif
-
+////
 			std::vector<___FONT_DATA___::__font_data__> entries ;
 			entries.reserve(familyCount * 4) ;
-			
+////
 			std::string csvOutput ;
 			if (opt.write_csv_) {
 				csvOutput.reserve(opt.reserve_bytes_) ;
@@ -230,9 +226,9 @@ namespace ___FONT_DUMP___ {
 					if (!entryOpt) {
 						continue ;
 					}
-					
+////
 					___FONT_DATA___::__font_data__ entry = *entryOpt ;
-					
+////
 					const std::string_view name_view(entry.fontname_.data(), strlen(entry.fontname_.data())) ;
 					std::string key ;
 					key.reserve(name_view.size() + 2) ;
@@ -288,7 +284,9 @@ namespace ___FONT_DUMP___ {
 			if (opt.write_bin_ && !entries.empty()) {
 				std::ofstream binFile(opt.path_bin_, std::ios::binary) ;
 				if (binFile) {
+////
 					___FONT_DATA___::__font_binary_header__ header ;
+////
 					header.count_ = static_cast<uint32_t>(entries.size()) ;
 					header.timestamp_ = static_cast<uint64_t>(time(nullptr)) ;
 					
@@ -304,14 +302,12 @@ namespace ___FONT_DUMP___ {
 				}
 			}
 
-			___ACCESSOR___::____accessor____::___close_access___() ;
-
 			return std::make_pair(entries.size(), std::max(csvBytes, binBytes)) ;
 		}
 
 	public :
 		__font_dump__() {
-			if (!___ACCESSOR___::____accessor____::___grant___) {
+			if (!___ACCESSOR___::____accessor____::___is_granted___()) {
 				throw ___ERROR_HANDLER___::no_have_access() ;
 			} 
 		}
@@ -320,9 +316,6 @@ namespace ___FONT_DUMP___ {
 			___ACCESSOR___::____accessor____::___open_access___() ;
 
 			__font_dump__ opt ;
-
-			___ACCESSOR___::____accessor____::___close_access___() ;
-			
 			opt.path_csv_ = std::string(filename_without_ext) + path + ".csv" ;
 			opt.path_bin_ = std::string(filename_without_ext) + path + ".bin" ;
 			opt.write_bin_ = write_bin ;
@@ -330,6 +323,8 @@ namespace ___FONT_DUMP___ {
 			opt.reserve_bytes_ = reserve_bytes ;
 
 			const auto res = ___dump_installed_fonts___(opt) ;
+
+			___ACCESSOR___::____accessor____::___close_access___() ;
 			
 			return res.has_value() ;
 		}
@@ -351,9 +346,11 @@ namespace ___FONT_DUMP___ {
 			___ACCESSOR___::____accessor____::___open_access___() ;
 
 			___FONT_DATA___::__font_binary_header__ header ;
+
 			file.read(reinterpret_cast<char*>(&header), sizeof(header)) ;
 			
 			if (!file || !header.IsValid()) {
+
 				___ACCESSOR___::____accessor____::___close_access___() ;
 
 				return std::nullopt ;
@@ -361,6 +358,7 @@ namespace ___FONT_DUMP___ {
 			
 			const size_t expectedSize = sizeof(___FONT_DATA___::__font_binary_header__) + header.count_ * sizeof(___FONT_DATA___::__font_data__) ;
 			if (static_cast<size_t>(fileSize) < expectedSize) {
+
 				___ACCESSOR___::____accessor____::___close_access___() ;
 
 				return std::nullopt ;
@@ -373,6 +371,7 @@ namespace ___FONT_DUMP___ {
 			file.read(reinterpret_cast<char*>(entries.data()), static_cast<std::streamsize>(header.count_ * sizeof(___FONT_DATA___::__font_data__))) ;
 			
 			if (!file) {
+
 				___ACCESSOR___::____accessor____::___close_access___() ;
 
 				return std::nullopt ;

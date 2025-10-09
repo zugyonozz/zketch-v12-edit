@@ -31,14 +31,20 @@ namespace ___ACCESSOR___ {
 		friend class ___FONT_DUMP___::__font_dump__ ;
 
 	private :
-		static inline bool ___grant___ = false ;
+		static inline int ___grant_depth___ = 0 ;
 
 		static inline void ___open_access___() noexcept {
-			___grant___ = true ;
+			++___grant_depth___ ;
 		}
 
 		static inline void ___close_access___() noexcept {
-			___grant___ = false ;
+			if (___grant_depth___ > 0) {
+				--___grant_depth___ ;
+			}
+		}
+
+		static inline bool ___is_granted___() noexcept {
+			return ___grant_depth___ > 0 ;
 		}
 	} ;
 }
@@ -77,7 +83,7 @@ namespace ___FONT_DATA___ {
 
 	public :
 		__font_data__() {
-			if (!___ACCESSOR___::____accessor____::___grant___) {
+			if (!___ACCESSOR___::____accessor____::___is_granted___()) {
 				throw ___ERROR_HANDLER___::no_have_access() ;
 			}
 		}
@@ -100,7 +106,7 @@ namespace ___FONT_DATA___ {
 		
 	public :
 		__font_binary_header__() {
-			if (!___ACCESSOR___::____accessor____::___grant___) {
+			if (!___ACCESSOR___::____accessor____::___is_granted___()) {
 				throw ___ERROR_HANDLER___::no_have_access() ;
 			} 
 		}

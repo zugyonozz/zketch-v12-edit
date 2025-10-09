@@ -957,6 +957,10 @@ inline std::wstring StringToWideString(const std::string& str) noexcept {
 	return wstr ;
 }
 
+inline std::wstring StringToWideString(const std::string_view& str) noexcept {
+	return StringToWideString(static_cast<std::string>(str)) ;
+}
+
 inline std::string WideStringToString(const std::wstring& wstr) noexcept {
     if (wstr.empty()) {
         return "" ;
