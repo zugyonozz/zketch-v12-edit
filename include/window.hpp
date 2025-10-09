@@ -73,25 +73,25 @@ namespace zketch {
 		}
 
 		static bool LoadFonts() noexcept {
-			auto fontMapOpt = ___FONT_DUMP___::__font_dump__::LoadFontsFromBin("../bin/fonts.bin") ;
+			auto fontMapOpt = ___FONT_DUMP___::__font_dump__::LoadFontsFromBin("fonts.bin") ;
 			
 			if (!fontMapOpt) {
 				#ifdef APPLICATION_DEBUG
-					logger::error("Application::LoadFont - Failed load fonts from fonts.bin"); 
-					logger::info("Application::LoadFont - Trying to create dump fonts."); 
+					logger::error("Application::LoadFonts - Failed load fonts from fonts.bin"); 
+					logger::info("Application::LoadFonts - Trying to create dump fonts."); 
 				#endif
 
 				// Create dump if not exists
 				if (!___FONT_DUMP___::__font_dump__::CreateDumpFonts("fonts", "")) {
 					#ifdef APPLICATION_DEBUG
-						logger::error("Application::LoadFont - Failed to create dump fonts.") ; 
+						logger::error("Application::LoadFonts - Failed to create dump fonts.") ; 
 					#endif
 					return false ;
 				}
 
 				#ifdef APPLICATION_DEBUG
-					logger::info("Application::LoadFont - Successfully create dump font.") ;
-					logger::info("Application::LoadFont - Trying to load fonts again.") ;
+					logger::info("Application::LoadFonts - Successfully create dump font.") ;
+					logger::info("Application::LoadFonts - Trying to load fonts again.") ;
 				#endif
 
 				// Try load again
@@ -99,7 +99,7 @@ namespace zketch {
 
 				if (!fontMapOpt) {
 					#ifdef APPLICATION_DEBUG
-						logger::error("Application::LoadFont - Failed load fonts after dump creation.") ;
+						logger::error("Application::LoadFonts - Failed load fonts after dump creation.") ;
 					#endif
 					return false ;
 				}
@@ -108,7 +108,7 @@ namespace zketch {
 			Font::g_fonts_ = std::move(*fontMapOpt) ;
 
 			#ifdef APPLICATION_DEBUG
-				logger::info("Application::LoadFont - Successfully load ", Font::g_fonts_.size(), " fonts.") ;
+				logger::info("Application::LoadFonts - Successfully loaded ", Font::g_fonts_.size(), " fonts.") ;
 			#endif
 
 			return !Font::g_fonts_.empty() ;
@@ -116,6 +116,27 @@ namespace zketch {
 
 		static size_t GetFontCount() noexcept {
 			return Font::g_fonts_.size() ;
+		}
+
+		static std::vector<std::string> GetAvailableFonts() noexcept {
+			std::vector<std::string> fonts ;
+			std::unordered_set<std::string> unique_names ;
+			
+			for (const auto& [key, data] : Font::g_fonts_) {
+				std::string_view name_view(data.fontname_.data(), strlen(data.fontname_.data())) ;
+				std::string name(name_view) ;
+				if (unique_names.insert(name).second) {
+					fonts.push_back(std::move(name)) ;
+				}
+			}
+			
+			std::sort(fonts.begin(), fonts.end()) ;
+			return fonts ;
+		}
+
+		// Check apakah font dengan style tertentu tersedia
+		static bool IsFontAvailable(const std::string_view& fontname, FontStyle style = FontStyle::Regular) noexcept {
+			return ___FONT_DUMP___::__font_dump__::___find_font___(Font::g_fonts_, fontname, static_cast<uint8_t>(style)) != nullptr ;
 		}
 	} ;
 
@@ -442,7 +463,7 @@ namespace zketch {
 			if (screen.GetLastStatus() != Gdiplus::Ok) {
 
 				#ifdef WINDOW_DEBUG
-					logger::error("Present - Graphics creation failed");
+					logger::error("Window::Present - Graphics creation failed");
 				#endif
 
 				ReleaseDC(handle_, hdc);
@@ -457,7 +478,7 @@ namespace zketch {
 			if (status != Gdiplus::Ok) {
 
 				#ifdef WINDOW_DEBUG
-					logger::error("Present - DrawImage failed: ", static_cast<int>(status));
+					logger::error("Window::Present - DrawImage failed: ", static_cast<int>(status));
 				#endif
 				
 			}
@@ -517,7 +538,7 @@ namespace zketch {
 					Application::app_is_runing_ = false ;
 					
 					#ifdef WINDOW_DEBUG
-						logger::info("wndproc::WM_DESTROY - All windows closed, posting quit message.") ;
+						logger::info("wndproc - All windows closed, posting quit message.") ;
 					#endif
 				}
 				return 0 ;

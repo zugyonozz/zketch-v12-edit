@@ -5,6 +5,7 @@ namespace ___FONT_DUMP___ {
 
 	class __font_dump__ {
 		friend class zketch::Font ;
+		friend class zketch::Application ;
 
 		struct __collect_ctx__ {
 			std::set<std::wstring> families ;
@@ -143,7 +144,12 @@ namespace ___FONT_DUMP___ {
 			std::string name(nameBuffer, utf8Len) ;
 			___trim___(name) ;
 			
+			___ACCESSOR___::____accessor____::___open_access___() ;
+
 			___FONT_DATA___::__font_data__ entry {} ;
+
+			___ACCESSOR___::____accessor____::___close_access___() ;
+
 			entry.SetFontName(name) ;
 			entry.height_ = static_cast<float>(tm.tmHeight) ;
 			entry.ascent_ = static_cast<float>(tm.tmAscent) ;
@@ -171,6 +177,8 @@ namespace ___FONT_DUMP___ {
 			if (!dc) {
 				return std::nullopt ;
 			}
+
+			___ACCESSOR___::____accessor____::___open_access___() ;
 
 			#ifdef FONT_DEBUG
 				logger::info("___dump_installed_fonts___ - Collecting font families...") ;
@@ -219,7 +227,9 @@ namespace ___FONT_DUMP___ {
 			for (const auto& family : ctxs.families) {
 				for (const auto& [weight, italic] : styles) {
 					auto entryOpt = ___try_create_font___(dc, family, weight, italic) ;
-					if (!entryOpt) continue ;
+					if (!entryOpt) {
+						continue ;
+					}
 					
 					___FONT_DATA___::__font_data__ entry = *entryOpt ;
 					
@@ -230,7 +240,9 @@ namespace ___FONT_DUMP___ {
 					key.push_back('|') ;
 					key.push_back('0' + entry.style_) ;
 					
-					if (!seen.insert(key).second) continue ;
+					if (!seen.insert(key).second) {
+						continue ;
+					}
 					
 					entries.push_back(entry) ;
 					
@@ -292,20 +304,25 @@ namespace ___FONT_DUMP___ {
 				}
 			}
 
+			___ACCESSOR___::____accessor____::___close_access___() ;
+
 			return std::make_pair(entries.size(), std::max(csvBytes, binBytes)) ;
 		}
 
 	public :
 		__font_dump__() {
-			if (!___ACCESSOR___::____accessor____::___has_declare___) {
-				___ACCESSOR___::____accessor____::___has_declare___ = true ;
-			} else {
+			if (!___ACCESSOR___::____accessor____::___grant___) {
 				throw ___ERROR_HANDLER___::no_have_access() ;
-			}
+			} 
 		}
 
 		static bool CreateDumpFonts(const char* filename_without_ext, const char* path, uint32_t reserve_bytes = 1 << 20, bool write_bin = true, bool write_csv = false) noexcept {
+			___ACCESSOR___::____accessor____::___open_access___() ;
+
 			__font_dump__ opt ;
+
+			___ACCESSOR___::____accessor____::___close_access___() ;
+			
 			opt.path_csv_ = std::string(filename_without_ext) + path + ".csv" ;
 			opt.path_bin_ = std::string(filename_without_ext) + path + ".bin" ;
 			opt.write_bin_ = write_bin ;
@@ -330,16 +347,22 @@ namespace ___FONT_DUMP___ {
 			if (fileSize < static_cast<std::streamoff>(sizeof(___FONT_DATA___::__font_binary_header__))) {
 				return std::nullopt ;
 			}
-			
+
+			___ACCESSOR___::____accessor____::___open_access___() ;
+
 			___FONT_DATA___::__font_binary_header__ header ;
 			file.read(reinterpret_cast<char*>(&header), sizeof(header)) ;
 			
 			if (!file || !header.IsValid()) {
+				___ACCESSOR___::____accessor____::___close_access___() ;
+
 				return std::nullopt ;
 			}
 			
 			const size_t expectedSize = sizeof(___FONT_DATA___::__font_binary_header__) + header.count_ * sizeof(___FONT_DATA___::__font_data__) ;
 			if (static_cast<size_t>(fileSize) < expectedSize) {
+				___ACCESSOR___::____accessor____::___close_access___() ;
+
 				return std::nullopt ;
 			}
 			
@@ -347,10 +370,11 @@ namespace ___FONT_DUMP___ {
 			fontMap.reserve(header.count_) ;
 			
 			std::vector<___FONT_DATA___::__font_data__> entries(header.count_) ;
-			file.read(reinterpret_cast<char*>(entries.data()), 
-				static_cast<std::streamsize>(header.count_ * sizeof(___FONT_DATA___::__font_data__))) ;
+			file.read(reinterpret_cast<char*>(entries.data()), static_cast<std::streamsize>(header.count_ * sizeof(___FONT_DATA___::__font_data__))) ;
 			
 			if (!file) {
+				___ACCESSOR___::____accessor____::___close_access___() ;
+
 				return std::nullopt ;
 			}
 			
@@ -363,6 +387,8 @@ namespace ___FONT_DUMP___ {
 				key.push_back('0' + static_cast<char>(entry.style_)) ;
 				fontMap.emplace(std::move(key), std::move(entry)) ;
 			}
+
+			___ACCESSOR___::____accessor____::___close_access___() ;
 
 			return fontMap ;
 		}

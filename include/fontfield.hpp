@@ -8,19 +8,18 @@ namespace ___FONT_DATA___ {
 
 namespace ___FONT_DUMP___ {
 	class __font_dump__ ;
-
 }
 
 namespace ___ERROR_HANDLER___ {
-	struct no_have_access {
-		const char* what(const char* msg) {
-			return msg ;
+	struct no_have_access : public std::exception {
+		const char* what() const noexcept override {
+			return "Unauthorized access to font data structure. Only one declaration allowed." ;
 		}
 	} ;
 
-	struct invalid_type {
-		const char* what(const char* msg) {
-			return msg ;
+	struct invalid_type : public std::exception {
+		const char* what() const noexcept override {
+			return "Invalid font type or font not found in the font database." ;
 		}
 	} ;
 }
@@ -32,14 +31,19 @@ namespace ___ACCESSOR___ {
 		friend class ___FONT_DUMP___::__font_dump__ ;
 
 	private :
-		static inline bool ___has_declare___ = false ;
+		static inline bool ___grant___ = false ;
+
+		static inline void ___open_access___() noexcept {
+			___grant___ = true ;
+		}
+
+		static inline void ___close_access___() noexcept {
+			___grant___ = false ;
+		}
 	} ;
 }
 
 namespace ___FONT_DATA___ {
-
-	inline void GetCharacterWidths(HDC, ___FONT_DATA___::__font_data__&) noexcept ;
-	std::optional<___FONT_DATA___::__font_data__> TryCreateFont(HDC, const std::wstring&, int32_t, bool) noexcept ;
 
 	static constexpr uint8_t ___CHAR_START___ = 32 ;   // Space
 	static constexpr uint8_t ___CHAR_END___ = 126 ;    // Tilde
@@ -50,9 +54,8 @@ namespace ___FONT_DATA___ {
 
 	class __font_data__ {
 		friend class zketch::Font ;
+		friend class zketch::Application ;
 		friend class ___FONT_DUMP___::__font_dump__ ;
-		friend inline void GetCharacterWidths(HDC, ___FONT_DATA___::__font_data__&) noexcept ;
-		friend std::optional<___FONT_DATA___::__font_data__> TryCreateFont(HDC, const std::wstring&, int32_t, bool) noexcept ;
 
 	private :
 		uint8_t style_ = 0 ;
@@ -61,10 +64,10 @@ namespace ___FONT_DATA___ {
 		float ascent_ = 0.0f ;
 		float descent_ = 0.0f ;
 		std::array<char, ___FONT_NAME_MAX_LEN___> fontname_ {} ;
-		std::array<char, ___CHAR_COUNT___> char_widths_ {} ;
+		std::array<float, ___CHAR_COUNT___> char_widths_ {} ;
 
 		inline void SetFontName(const std::string_view& name) noexcept {
-			const size_t len = (name.size() < ___FONT_NAME_MAX_LEN___ - 1) ? name.size() : ___FONT_NAME_MAX_LEN___ - 1 ;
+			const size_t len = std::min(name.size(), size_t(___FONT_NAME_MAX_LEN___ - 1)) ;
 			memcpy(fontname_.data(), name.data(), len) ;
 			fontname_[len] = '\0' ;
 			if (len + 1 < ___FONT_NAME_MAX_LEN___) {
@@ -74,9 +77,7 @@ namespace ___FONT_DATA___ {
 
 	public :
 		__font_data__() {
-			if (!___ACCESSOR___::____accessor____::___has_declare___) {
-				___ACCESSOR___::____accessor____::___has_declare___ = true ;
-			} else {
+			if (!___ACCESSOR___::____accessor____::___grant___) {
 				throw ___ERROR_HANDLER___::no_have_access() ;
 			}
 		}
@@ -89,25 +90,23 @@ namespace ___FONT_DATA___ {
 		friend class ___FONT_DUMP___::__font_dump__ ;
 
 	private :
-		uint32_t magic_ = 0x534E5446 ;
+		uint32_t magic_ = 0x534E5446 ;  // "FTNS" dalam little endian
 		uint16_t version_ = 3 ;
 		uint16_t entry_size_ = sizeof(__font_data__) ;
-		uint32_t count_ ;
-		uint64_t timestamp_ ;
-		uint64_t reserved_1_ ;
-		uint64_t reserved_2_ ;
+		uint32_t count_ = 0 ;
+		uint64_t timestamp_ = 0 ;
+		uint64_t reserved_1_ = 0 ;
+		uint64_t reserved_2_ = 0 ;
 		
 	public :
-		__font_binary_header__() : count_(0), timestamp_(0), reserved_1_(0), reserved_2_(0) {
-			if (!___ACCESSOR___::____accessor____::___has_declare___) {
-				___ACCESSOR___::____accessor____::___has_declare___ = true ;
-			} else {
+		__font_binary_header__() {
+			if (!___ACCESSOR___::____accessor____::___grant___) {
 				throw ___ERROR_HANDLER___::no_have_access() ;
-			}
+			} 
 		}
 		
 		[[nodiscard]] bool IsValid() const noexcept {
-			return magic_ == 0x534E5446 && version_ == 3 && entry_size_ == sizeof(__font_data__) ;
+			return magic_ == 0x534E5446 && version_ == 3 &&  entry_size_ == sizeof(__font_data__) && count_ > 0 ; 
 		}
 	} ;
 	#pragma pack(pop)

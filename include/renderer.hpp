@@ -357,16 +357,6 @@ namespace zketch {
 				return ;
 			}
 
-			if (!font.IsValid()) {
-
-				#ifdef RENDERER_DEBUG
-					logger::warning("Renderer::DrawString - Font isn't valid") ;
-				#endif
-
-				return ;
-
-			}
-
 			canvas_target_->MarkInvalidate() ;
 			Gdiplus::SolidBrush brush(color) ;
 			Gdiplus::Font used_font = font ;
@@ -376,6 +366,10 @@ namespace zketch {
 			fmt.SetAlignment(Gdiplus::StringAlignmentNear) ;
 			fmt.SetLineAlignment(Gdiplus::StringAlignmentNear) ;
 			gfx_->DrawString(text.c_str(), -1, &used_font, layout, &fmt, &brush) ;
+		}
+
+		void DrawString(const std::string& text, const Point& pos, const Color& color, const Font& font) noexcept {
+			DrawString(StringToWideString(text), pos, color, font) ;
 		}
 
 		void DrawPolygon(const Vertex& vertices, const Color& color, float thickness = 1.0f) noexcept {
