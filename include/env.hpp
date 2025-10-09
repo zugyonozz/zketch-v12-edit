@@ -23,6 +23,8 @@
 #include <thread>
 
 namespace zketch {
+	class Application ;
+	class Font ;
 	class EventSystem ;
 	class Canvas ;
 	class Window ;
