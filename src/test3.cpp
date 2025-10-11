@@ -1,3 +1,66 @@
+<<<<<<< HEAD
+#include "zketch.hpp"
+using namespace zketch ;
+
+Rect Client ;
+
+void UpdateClient(const Window& window) noexcept {
+	Client = window.GetClientBound() ;
+}
+
+int main() {
+	zketch_init() ;
+
+	Window window("canvas renew test", 800, 600) ;
+	window.Show() ;
+
+	Renderer renderer ;
+
+	Canvas canvas ;
+	canvas.Create(50) ;
+
+	if (renderer.Begin(canvas)) {
+		renderer.Clear(Transparent) ;
+		renderer.FillRect({Point{}, Size{50}}, Red) ;
+		renderer.End() ;
+	}
+
+	PointF pos ;
+
+	Event e ;
+	while (Application::IsRunning()) {
+		while (PollEvent(e)) {
+			if (e == EventType::Close) {
+				window.Close() ;
+			}
+
+			if (e == EventType::Key) {
+				if (e.GetKeyState() == KeyState::Down) {
+					if (e.GetKeyCode() == KeyCode::A) {
+						pos += PointF{-10, 0} ;
+					} else if (e.GetKeyCode() == KeyCode::W) {
+						pos += PointF{0, -10} ;
+					} else if (e.GetKeyCode() == KeyCode::D) {
+						pos += PointF{10, 0} ;
+					} else if (e.GetKeyCode() == KeyCode::S) {
+						pos += PointF{0, 10} ;
+					} 
+				}
+			}
+		}
+
+		if (renderer.Begin(window)) {
+			renderer.Clear(White) ;
+			renderer.DrawCanvas(&canvas, pos) ;
+			renderer.End() ;
+		}
+
+		renderer.Present(window) ;
+		Sleep(16) ;
+	}
+
+	return 0 ;
+=======
 #include "window.hpp"
 using namespace zketch ;
 
@@ -59,4 +122,5 @@ int main() {
 	}
 
 	return 0 ;
+>>>>>>> 015feefd91700e70c7ee430b9505f3ab1ca1e0a6
 }

@@ -1,3 +1,25 @@
+<<<<<<< HEAD
+#include "zketch.hpp"
+using namespace zketch ;
+
+class Calculator {
+	private :
+		std::vector<Button> buttons_ ;
+		std::string expr_ ;
+
+	public :
+		Calculator(const Calculator&) = delete ;
+		Calculator& operator=(const Calculator&) = delete ;
+		Calculator(Calculator&&) = default ;
+		Calculator& operator=(Calculator&&) = default ;
+		Calculator() = default ;
+
+	
+} ;
+
+int main() {
+	zketch_init() ;
+=======
 #include "window.hpp"
 
 using namespace zketch ;
@@ -57,4 +79,5 @@ int main() {
 		Sleep(1000) ;
 	}
 	return 0 ;
+>>>>>>> 015feefd91700e70c7ee430b9505f3ab1ca1e0a6
 }
